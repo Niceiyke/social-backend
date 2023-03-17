@@ -38,32 +38,12 @@ INSTALLED_APPS = [
     'myauth',
     'api',
 
+    #Rest Framework
+    'rest_framework',
 
-    #allauth
-
-    'allauth',
-    'allauth.account',
-    'allauth.socialaccount',
 ]
 
 AUTH_USER_MODEL = "myauth.myUser"
-
-SITE_ID = 1
-
-# Provider specific settings
-SOCIALACCOUNT_PROVIDERS = {
-    'google': {
-        # For each OAuth based provider, either add a ``SocialApp``
-        # (``socialaccount`` app) containing the required client
-        # credentials, or list them here:
-        'APP': {
-            'client_id': '123',
-            'secret': '456',
-            'key': ''
-        }
-    }
-}
-
 
 
 MIDDLEWARE = [
@@ -96,9 +76,6 @@ TEMPLATES = [
 AUTHENTICATION_BACKENDS = [
     # Needed to login by username in Django admin, regardless of `allauth`
     'django.contrib.auth.backends.ModelBackend',
-
-    # `allauth` specific authentication methods, such as login by e-mail
-    'allauth.account.auth_backends.AuthenticationBackend'
 ]
 
 WSGI_APPLICATION = 'social.wsgi.application'
@@ -164,27 +141,6 @@ STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-
-# Settings for email as username
-ACCOUNT_EMAIL_REQUIRED = True
-ACCOUNT_UNIQUE_EMAIL = True
-ACCOUNT_AUTHENTICATION_METHOD = "email"
-ACCOUNT_USERNAME_REQUIRED = False
-ACCOUNT_USER_MODEL_USERNAME_FIELD = None
-
-# Email confirmation
-ACCOUNT_EMAIL_SUBJECT_PREFIX = "[My Website]"
-ACCOUNT_LOGIN_ON_EMAIL_CONFIRMATION = True
-
-# After 10 failed login attempts, restrict logins for 30 minutes
-ACCOUNT_LOGIN_ATTEMPTS_LIMIT = 10
-ACCOUNT_LOGIN_ATTEMPTS_TIMEOUT = 1800
-ACCOUNT_PASSWORD_MIN_LENGTH = 12
-
-# Other settings
-ACCOUNT_DEFAULT_HTTP_PROTOCOL = "https"
-ACCOUNT_LOGIN_ON_PASSWORD_RESET = True
-SOCIALACCOUNT_AUTO_SIGNUP = False
 
 
 AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID')

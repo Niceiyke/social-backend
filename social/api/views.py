@@ -1,4 +1,6 @@
-from rest_framework.generics import ListCreateAPIView,RetrieveUpdateDestroyAPIView,GenericAPIView
+from itertools import chain
+import random
+from rest_framework.generics import CreateAPIView,RetrieveUpdateDestroyAPIView,GenericAPIView
 from rest_framework.views import APIView
 from rest_framework.parsers import MultiPartParser, FormParser
 from django.db.models import Q
@@ -7,7 +9,7 @@ from rest_framework.response import Response
 from rest_framework.request import Request
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
-from social.models import Post, Comment, UserProfile, Notification,Image
+from core.models import Post, Comment, UserProfile,Image
 from django.contrib.auth.mixins import UserPassesTestMixin, LoginRequiredMixin
 from .serializers import AccountSerializer,PostSerializer,UserProfileSerializer,CommentSerializer
 
@@ -59,7 +61,7 @@ class UserProfileView(RetrieveUpdateDestroyAPIView):
     serializer_class =UserProfileSerializer
     lookup_field ='pk'
 
-class PostListCreateView(LoginRequiredMixin, ListCreateAPIView):
+class PostCreateView(LoginRequiredMixin, CreateAPIView):
 
     queryset=Post.objects.all()
     serializer_class =PostSerializer
@@ -72,7 +74,23 @@ class PostListCreateView(LoginRequiredMixin, ListCreateAPIView):
     #   #  print('upl',uploaded_images)
     #     print('p',post)
     #     return post
-             
+
+class listPost(APIView):
+    def get(self,request):
+        follwings_post =[]
+        user=request.user
+        followings =UserProfile.objects.get(user=user).following.all()
+        
+        for profile in followings:
+            profile_posts=Post.objects.filter(author=profile)
+            for post in profile_posts:
+                follwings_post.append(post)
+
+        user_post =Post.objects.filter(author=user)
+        queryset= list(chain(user_post,follwings_post))
+        random.shuffle(queryset)
+        serializer =PostSerializer(queryset,many=True)  
+        return Response(serializer.data)
 
 class PostRetriveUpdateDeletView(RetrieveUpdateDestroyAPIView):
     queryset=Post.objects.all()
@@ -153,9 +171,6 @@ class AddLikeView(APIView):
                 is_like = True
                 break
 
-        if not is_like:
-            post.likes.add(request.user)
-            notification = Notification.objects.create(notification_type=1, from_user=request.user, to_user=post.author, post=post)
 
         if is_like:
             post.likes.remove(request.user)
@@ -232,7 +247,6 @@ class AddCommentLikeView(APIView):
         data =comment.likes.count()
 
         return Response({'likes:',data},status=status.HTTP_200_OK)
-
 
 class AddCommentDisLikeView(APIView):
     def get(self, request, pk, *args, **kwargs):

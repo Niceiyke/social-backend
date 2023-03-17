@@ -23,6 +23,7 @@ class UserProfile(models.Model):
     location = models.CharField(max_length=100, blank=True, null=True)
     picture = models.ImageField(upload_to='uploads/profile_pictures', default='uploads/profile_pictures/default.png', blank=True)
     followers = models.ManyToManyField(User, blank=True, related_name='followers')
+    following = models.ManyToManyField(User, blank=True, related_name='following')
     country =models.CharField(max_length=50,null=True,blank=True)
     favourite_club =models.CharField(max_length=50,null=True,blank=True)
     
@@ -63,8 +64,8 @@ class Post(models.Model):
         print(author_picture)
         return author_picture
 
-    def get_absolute_url(self):
-        return reverse('social:post-detail',args=[self.post_id])
+    #def get_absolute_url(self):
+    #   return reverse('social:post-detail',args=[self.post_id])
 
 
 class Image(models.Model):
