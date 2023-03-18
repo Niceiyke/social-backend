@@ -89,7 +89,6 @@ class UserProfileSerializer(serializers.ModelSerializer):
         model =UserProfile
         fields ='__all__'
 
-
 class CommentSerializer(serializers.ModelSerializer):
 
     class Meta:
