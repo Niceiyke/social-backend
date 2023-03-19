@@ -1,5 +1,4 @@
 from django.urls import path
-
 from rest_framework_simplejwt.views import (
     TokenRefreshView,
 )
@@ -31,9 +30,9 @@ urlpatterns = [
     path("create/", PostCreateView.as_view(), name="create"),
     path("post/<str:pk>", PostRetriveUpdateDeletView.as_view(), name="single-post"),
     path("profile/<int:pk>", UserProfileView.as_view(), name="profile"),
-    path("profile/<int:pk>/add-follow", AddFollowingView.as_view(), name="add-following"),
-    path("profile/<int:pk>/followers", ListFollowersView.as_view(), name="list-followers"),
-    path("profile/<int:pk>/following", ListFollowingView.as_view(), name="list-following"),
+    path("profile/add-follow/<str:pk>", AddFollowingView.as_view(), name="add-following"),
+    path("profile/followers", ListFollowersView.as_view(), name="list-followers"),
+    path("profile/following", ListFollowingView.as_view(), name="list-following"),
     path("post/comment/<str:post_pk>", CommentView.as_view(), name="list-comment"),
     path(
         "post/comment/<str:post_pk>/<int:pk>",

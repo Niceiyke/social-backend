@@ -4,6 +4,8 @@ from django.urls import reverse
 from django.contrib.auth import get_user_model
 from django.db.models.signals import post_save
 from django.dispatch import receiver
+
+from.manager import PostManager,ProfileManager
     
 class MyUUIDModel(models.Model):
 	id = models.UUIDField(
@@ -16,19 +18,19 @@ User= get_user_model()
 
 class UserProfile(models.Model):
     user=models.OneToOneField(User, primary_key=True, verbose_name='user', related_name='profile', on_delete=models.CASCADE)
-    first_name =models.CharField(max_length=20, blank=True, null=True)
-    last_name =models.CharField(max_length=20, blank=True, null=True)
     bio =models.TextField(max_length=500, blank=True, null=True)
     birth_date=models.DateField(null=True, blank=True)
     location = models.CharField(max_length=100, blank=True, null=True)
     picture = models.ImageField(upload_to='uploads/profile_pictures', default='uploads/profile_pictures/default.png', blank=True)
     followers = models.ManyToManyField(User, blank=True, related_name='followers')
-    following = models.ManyToManyField(User, blank=True, related_name='following')
+    followings = models.ManyToManyField(User, blank=True, related_name='following')
     country =models.CharField(max_length=50,null=True,blank=True)
     favourite_club =models.CharField(max_length=50,null=True,blank=True)
-    
+
+    objects =ProfileManager()
+   
     def __str__(self):
-        return self.user.email
+        return self.user.first_name
 
 
 class Post(models.Model): 
@@ -42,6 +44,8 @@ class Post(models.Model):
     dislikes =models.ManyToManyField(User,blank=True,related_name='dislikes',)
     expiration= models.DateTimeField(null=True)
     comments =models.ManyToManyField('Comment',blank=True,related_name='comments',)
+
+    objects=PostManager()
 
 
 

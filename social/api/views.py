@@ -1,5 +1,3 @@
-from itertools import chain
-import random
 from rest_framework.generics import (
     CreateAPIView,
     RetrieveUpdateDestroyAPIView,
@@ -14,6 +12,7 @@ from rest_framework.request import Request
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
 from core.models import Post, Comment, UserProfile, Image
+from myauth.models import myUser
 from django.contrib.auth.mixins import UserPassesTestMixin, LoginRequiredMixin
 from .serializers import (
     AccountSerializer,
@@ -73,30 +72,12 @@ class PostCreateView(LoginRequiredMixin, CreateAPIView):
     queryset = Post.objects.all()
     serializer_class = PostSerializer
 
-    # def  perform_create(self, serializer):
-    #     uploaded_images =serializer.pop("uploaded_images")
-    #     post =Post.objects.create(**serializer)
-    #     serializer.save(author=self.request.user)
-    #   #  print('upl',uploaded_images)
-    #     print('p',post)
-    #     return post
-
 
 class listPost(APIView):
     def get(self, request):
-        follwings_post = []
         user = request.user
         followings = UserProfile.objects.get(user=user).following.all()
-
-        for profile in followings:
-            profile_posts = Post.objects.filter(author=profile)
-            for post in profile_posts:
-                follwings_post.append(post)
-
-        user_post = Post.objects.filter(author=user)
-        queryset = list(chain(user_post, follwings_post))
-        print(len(queryset))
-        random.shuffle(queryset)
+        queryset = Post.objects.get_user_feed(user=user, followings=followings)
         serializer = PostSerializer(queryset, many=True)
         return Response(serializer.data)
 
@@ -123,10 +104,6 @@ class CommentView(APIView):
 
 
 class SingleCommentView(APIView):
-    """
-    List all snippets, or create a new snippet.
-    """
-
     def get(self, request, post_pk, pk, format=None):
         queryset = Comment.objects.filter(Q(post=post_pk) & Q(id=pk))
 
@@ -311,38 +288,60 @@ class AddImageView(APIView):
         return Response({"received data": " done"})
 
 
-class AddFollowingView(APIView):        
+class AddFollowingView(APIView):
     def post(self, request, pk, *args, **kwargs):
-        user = request.user
-        profile = UserProfile.objects.get(pk=pk)
-        profile_follower = UserProfile.objects.get(user=user)
-        if profile.user == user:
-            return Response("you cannot follow ur own account")
+        current_user = request.user
+        profile = UserProfile.objects.get(pk=current_user.id)
+        profile_follower = UserProfile.objects.get(user=pk)
+        user_to_follow = myUser.objects.get(pk=pk)
 
-        followings = profile.following.all()
+        if current_user == user_to_follow:
+            return Response(
+                {"message": "you cannot follow your own account"},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        followings = profile.followings.all()
         for follower in followings:
-            if follower == user:
-                profile.following.remove(user)
-                profile_follower.followers.remove(profile.user)
-                count = profile.following.count()
-                return Response({"Followeing": count}, status=status.HTTP_200_OK)
-        profile.following.add(user)
-        profile_follower.followers.add(profile.user)
-        count = profile.following.count()
-        # notification = Notification.objects.create(notification_type=3, from_user=request.user, to_user=profile.user)
-        return Response({"Followeing": count}, status=status.HTTP_200_OK)
+            if follower == user_to_follow:
+                profile.followings.remove(pk)
+                profile_follower.followers.remove(current_user)
+                count = profile.followings.count()
+                return Response({"Following": count}, status=status.HTTP_202_ACCEPTED)
+        profile.followings.add(pk)
+        profile_follower.followers.add(current_user)
+        count = profile.followings.count()
+        return Response({"Following": count}, status=status.HTTP_200_OK)
 
 
 class ListFollowersView(APIView):
-    def get(self, request, pk, *args, **kwargs):
-        user = request.user
-        profile = UserProfile.objects.get(pk=pk)
-        count = profile.followers.count()
-        return Response({"Followers": count}, status=status.HTTP_200_OK)
-    
+    def get(self, request, *args, **kwargs):
+        followers = UserProfile.objects.get_user_followers(pk=request.user.id)
+        serializer = UserProfileSerializer(followers, many=True)
+        count = len(followers)
+        return Response({"followers": serializer.data}, status=status.HTTP_200_OK)
+
+
 class ListFollowingView(APIView):
-    def get(self, request, pk, *args, **kwargs):
-        user = request.user
-        profile = UserProfile.objects.get(pk=pk)
-        count = profile.following.count()
-        return Response({"Following": count}, status=status.HTTP_200_OK)
+    def get(self, request, *args, **kwargs):
+        current_user = UserProfile.objects.filter(pk=request.user.id)
+        profiles = []
+        following = UserProfile.objects.get_user_following(pk=request.user.id)
+
+        all_user = UserProfile.objects.get_all_user_profile()
+
+        for user in all_user:
+            profile = UserProfile.objects.get(pk=user)
+            profiles.append(profile)
+
+        sugested_profiles_to_follow = [
+            user for user in profiles if user not in following
+        ]
+        final_suggested_profile_to_follow = [
+            user
+            for user in sugested_profiles_to_follow
+            if user not in list(current_user)
+        ]
+
+        serializer = UserProfileSerializer(following, many=True)
+        return Response({"following": serializer.data}, status=status.HTTP_200_OK)
