@@ -28,8 +28,10 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
         token = super().get_token(user)
 
         # Add custom claims
+        token["id"] = user.id
         token["email"] = user.email
-        token["first_name"] = user.profile.first_name
+        token["first_name"] = user.first_name
+        token["last_name"] = user.last_name
         # ...
 
         return token
@@ -76,8 +78,11 @@ class PostCreateView(LoginRequiredMixin, CreateAPIView):
 class listPost(APIView):
     def get(self, request):
         user = request.user
-        followings = UserProfile.objects.get(user=user).following.all()
+        followings = UserProfile.objects.get(user=user).followings.all()
         queryset = Post.objects.get_user_feed(user=user, followings=followings)
+        if len(queryset)<1:
+            return Response('you have no post from your feed')
+
         serializer = PostSerializer(queryset, many=True)
         return Response(serializer.data)
 

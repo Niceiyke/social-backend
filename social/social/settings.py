@@ -40,15 +40,34 @@ INSTALLED_APPS = [
 
     #Rest Framework
     'rest_framework',
+    'rest_framework.authtoken',
+    'rest_framework_simplejwt',
+    #Coresheader
+    "corsheaders",
 
 ]
 
 AUTH_USER_MODEL = "myauth.myUser"
 
+SIMPLE_JWT = {
+  # It will work instead of the default serializer(TokenObtainPairSerializer).
+  "TOKEN_OBTAIN_SERIALIZER": "rest_framework_simplejwt.serializers.MyTokenObtainPairSerializer",
+  # ...
+}
+
+REST_FRAMEWORK = {
+  
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+   
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    )
+ 
+}
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+     "corsheaders.middleware.CorsMiddleware",
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -85,6 +104,7 @@ WSGI_APPLICATION = 'social.wsgi.application'
 # https://docs.djangoproject.com/en/4.1/ref/settings/#databases
 
 if DEBUG:
+    print('offline')
     DATABASES = {
          'default': {
             'ENGINE': 'django.db.backends.sqlite3',
@@ -93,6 +113,7 @@ if DEBUG:
      
     }
 else:
+    print('online')
     DATABASES = {
     # 'default': {
     #     'ENGINE': 'django.db.backends.sqlite3',
@@ -160,5 +181,9 @@ STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+   
+]
 
 

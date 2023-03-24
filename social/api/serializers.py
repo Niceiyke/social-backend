@@ -79,7 +79,7 @@ class PostSerializer(serializers.ModelSerializer):
         return str(obj.author.profile.picture)
 
     def get_author_name(self, obj):
-        return str(obj.author.profile.first_name)
+        return str(obj.author.profile.user.first_name)
 
     def get_author_email(self, obj):
         return str(obj.author.profile.user.email)
@@ -109,7 +109,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
             "location",
             "picture",
             "followers",
-            "following",
+            "followings",
             "country",
             "favourite_club",
         ]
