@@ -1,9 +1,9 @@
 from rest_framework import serializers
+from django.utils import timezone
 from myauth.models import myUser
 from rest_framework.validators import ValidationError
 from rest_framework.authtoken.models import Token
-from core.models import Post, UserProfile, Comment, Image
-
+from core.models import Post, UserProfile,Image
 
 class AccountSerializer(serializers.ModelSerializer):
     email = serializers.CharField(max_length=50)
@@ -11,13 +11,20 @@ class AccountSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = myUser
-        fields = ["email", "first_name", "last_name", "password"]
+        fields = ["email","username", "first_name", "last_name", "password"]
 
     def validate(self, attrs):
         email_exist = myUser.objects.filter(email=attrs["email"]).exists()
         if email_exist:
             raise ValidationError("Email has already been used")
+        
+        username_exist = myUser.objects.filter(username=attrs["username"]).exists()
+        if username_exist:
+            raise ValidationError("username has already been used")
+        
         return super().validate(attrs)
+    
+
 
     def create(self, validated_data):
         password = validated_data.pop("password")
@@ -35,20 +42,19 @@ class ImageSerializer(serializers.ModelSerializer):
 
 
 class PostSerializer(serializers.ModelSerializer):
-    num_likes = serializers.SerializerMethodField(read_only=True)
-    num_dislikes = serializers.SerializerMethodField(read_only=True)
     author_picture = serializers.SerializerMethodField(read_only=True)
     author_name = serializers.SerializerMethodField(read_only=True)
+    shared_user_name = serializers.SerializerMethodField(read_only=True)
+    shared_user_username = serializers.SerializerMethodField(read_only=True)
+    shared_user_email = serializers.SerializerMethodField(read_only=True)
+    shared_user_picture = serializers.SerializerMethodField(read_only=True)
     author_email = serializers.SerializerMethodField(read_only=True)
+    author_username = serializers.SerializerMethodField(read_only=True)
+    post_images = serializers.ListField(child=serializers.ImageField(max_length=None, use_url=True), required=False)
+    total_likes = serializers.SerializerMethodField(read_only=True)
+    liked_by_user = serializers.SerializerMethodField(read_only=True)
     images = ImageSerializer(many=True, read_only=True)
-    uploaded_images = serializers.ListField(
-        child=serializers.ImageField(
-            max_length=1000000,
-            allow_empty_file=False,
-            use_url=False,
-        ),
-        write_only=True,
-    )
+
 
     class Meta:
         model = Post
@@ -58,41 +64,88 @@ class PostSerializer(serializers.ModelSerializer):
             "expiration",
             "author",
             "author_name",
+            "author_username",
+            "shared_body",
+            "shared_on",
             "images",
-            "uploaded_images",
+            "post_images",
+            "shared_user_name",
+            "shared_user_username",
+            "shared_user_email",
+            "shared_user_picture",
             "author_email",
             "author_picture",
-            "likes",
-            "num_likes",
-            "num_dislikes",
-            "dislikes",
+            "total_likes",
+            "liked_by_user",
             "created_on",
+            "original_post_id",
         ]
 
-    def get_num_likes(self, obj):
-        return obj.get_number_of_likes()
-
-    def get_num_dislikes(self, obj):
-        return obj.get_number_of_dislikes()
+ 
+    def get_total_likes(self, obj):
+        return obj.likes.count()
+    
+    def get_liked_by_user(self, obj):
+        user = self.context.get('request').user
+        if user.is_authenticated:
+            return obj.likes.filter(first_name=user).exists()
+        return False
+        
+    def get_shared(self, obj):
+        user = self.context.get('request').user
+        if user.is_authenticated:
+            return obj.shared_user.filter(first_name=user).exists()
+        return False
+        
 
     def get_author_picture(self, obj):
         return str(obj.author.profile.picture)
 
     def get_author_name(self, obj):
-        return str(obj.author.profile.user.first_name)
+        return str(obj.author.first_name)
+    
+    def get_shared_user_name(self, obj):
+        if obj.shared_user:
+          return str(obj.shared_user.first_name)
+        
+    def get_shared_user_email(self, obj):
+        if obj.shared_user:
+          return str(obj.shared_user.email)
+    
+    def get_shared_user_username(self, obj):
+        if obj.shared_user:
+          return str(obj.shared_user.username)
+    def get_shared_user_picture(self, obj):
+        if obj.shared_user:
+          return str(obj.get_shared_user_picture())
 
     def get_author_email(self, obj):
-        return str(obj.author.profile.user.email)
+        return str(obj.author.email)
+    def get_author_username(self, obj):
+        return str(obj.author.username)
 
     def create(self, validated_data):
-        request = self.context.get("request")
-        user = request.user
-        uploaded_images = validated_data.pop("uploaded_images")
-        post = Post.objects.create(body=validated_data["body"], author=user)
-        for image in uploaded_images:
-            Image.objects.create(post=post, image=image)
+        user =self.context.get("request").user
 
+        if validated_data.get('images') is None:
+            print('none')
+            post = Post.objects.create(body=validated_data["body"], author=user)    
+            print('post',post)       
+            return post
+
+            
+        print('yed')
+        post_images =validated_data.pop('images')
+        post = Post.objects.create(body=validated_data["body"], author=user)
+    
+        for image in post_images.values():
+                Image.objects.create(image=image,post=post )
+                print(image)
         return post
+    
+
+               
+        
     
     
 
@@ -116,7 +169,3 @@ class UserProfileSerializer(serializers.ModelSerializer):
 
 
 
-class CommentSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Comment
-        fields = "__all__"

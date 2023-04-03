@@ -1,9 +1,10 @@
 import uuid
 from django.db import models
-from django.urls import reverse
+from django.utils import timezone
 from django.contrib.auth import get_user_model
 from django.db.models.signals import post_save
 from django.dispatch import receiver
+
 
 from.manager import PostManager,ProfileManager
     
@@ -17,7 +18,7 @@ User= get_user_model()
 
 
 class UserProfile(models.Model):
-    user=models.OneToOneField(User, primary_key=True, verbose_name='user', related_name='profile', on_delete=models.CASCADE)
+    user=models.OneToOneField(User, primary_key=True, verbose_name='user', related_name='profile', on_delete=models.CASCADE,db_index=True)
     bio =models.TextField(max_length=500, blank=True, null=True)
     birth_date=models.DateField(null=True, blank=True)
     location = models.CharField(max_length=100, blank=True, null=True)
@@ -26,111 +27,70 @@ class UserProfile(models.Model):
     followings = models.ManyToManyField(User, blank=True, related_name='following')
     country =models.CharField(max_length=50,null=True,blank=True)
     favourite_club =models.CharField(max_length=50,null=True,blank=True)
+    verified =models.BooleanField(default=False)
+
 
     objects =ProfileManager()
    
     def __str__(self):
         return self.user.first_name
+    
+
+class Like(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    post = models.ForeignKey("Post", on_delete=models.CASCADE)
+    created_at = models.DateTimeField( auto_now_add=True,db_index=True)
 
 
 class Post(models.Model): 
     post_id =models.UUIDField(primary_key=True,default=uuid.uuid4,editable=False)
-    author =models.ForeignKey(User,on_delete=models.CASCADE)
-    body =models.CharField(max_length=240)
-    image = models.ImageField(upload_to='uploads/post_photos', blank=True, null=True)
-    created_on = models.DateTimeField(auto_now_add=True)
-    modified_on= models.DateTimeField(auto_now=True)
-    likes =models.ManyToManyField(User,blank=True,related_name='likes',)
-    dislikes =models.ManyToManyField(User,blank=True,related_name='dislikes',)
-    expiration= models.DateTimeField(null=True)
-    comments =models.ManyToManyField('Comment',blank=True,related_name='comments',)
+    author =models.ForeignKey(User,on_delete=models.CASCADE,related_name='authors',db_index=True)
+    body =models.CharField(max_length=240,db_index=True)
+    shared_body=models.CharField(max_length=240,blank=True,null=True)
+    shared_on =models.DateTimeField(auto_now=True,db_index=True)
+    original_post_id = models.CharField(max_length=60,blank=True,null=True)
+    shared_user=models.ForeignKey(User,on_delete=models.CASCADE,null=True,blank=True, related_name='shared_users',db_index=True)
+    created_on = models.DateTimeField(default=timezone.now,db_index=True)
+    modified_on= models.DateTimeField(auto_now=True,db_index=True)
+    expiration= models.DateTimeField(blank=True ,null=True,db_index=True)
+    likes = models.ManyToManyField(User, through='Like', related_name='liked_posts',blank=True)
+  
 
     objects=PostManager()
 
-
-
     class Meta:
-        ordering=['-created_on']
+        ordering=['-created_on','-shared_on']
 
     def __str__(self):
         return self.body[:20]
 
-    def get_number_of_likes(self):
-        number_of_likes = self.likes.count()
-        return number_of_likes
-
-    def get_number_of_dislikes(self):
-        number_of_dislikes = self.dislikes.count()
-        return number_of_dislikes
+    def get_shared_user_name(self):
+        shared_user_name = self.shared_user.first_name 
+        return shared_user_name
 
     def get_author_picture(self):
         author_picture = self.author.profile.picture
-        print(author_picture)
         return author_picture
+    
+    def get_shared_user_picture(self):
+        shared_user_picture = self.shared_user.profile.picture
+        return shared_user_picture
 
-    #def get_absolute_url(self):
-    #   return reverse('social:post-detail',args=[self.post_id])
+
+        
 
 
 class Image(models.Model):
-    image_id=models.UUIDField(primary_key=True,default=uuid.uuid4,editable=False)
     image = models.ImageField(upload_to='uploads/post_photos', blank=True, null=True)
-    post = models.ForeignKey(Post,on_delete=models.CASCADE ,related_name='images',blank=True,null=True)
+    post=models.ForeignKey(Post,on_delete=models.CASCADE,related_name='images')
+    
 
-   
-class Comment(models.Model):
-    comment = models.TextField()
-    created_on = models.DateTimeField(auto_now_add=True)
-    author = models.ForeignKey(User, on_delete=models.CASCADE)
-    post = models.ForeignKey('Post', on_delete=models.CASCADE)
-    likes = models.ManyToManyField(User, blank=True, related_name='comment_likes')
-    dislikes = models.ManyToManyField(User, blank=True, related_name='comment_dislikes')
-    parent = models.ForeignKey('self', on_delete=models.CASCADE, blank=True, null=True, related_name='+')
-    reply =models.ManyToManyField("ReplyComment",blank=True,related_name="replies")
-
-
-    @property
-    def children(self):
-        return Comment.objects.filter(parent=self).order_by('-created_on').all()
-
-    @property
-    def is_parent(self):
-        if self.parent is None:
-            return True
-        return False
-
-
-
-    class Meta:
-        ordering=['-created_on']
-
-class ReplyComment(models.Model):
-    reply = models.TextField()
-    created_on = models.DateTimeField(auto_now_add=True)
-    author = models.ForeignKey(User, on_delete=models.CASCADE)
-    comment = models.ForeignKey('Comment', on_delete=models.CASCADE)
-    likes = models.ManyToManyField(User, blank=True, related_name='reply_likes')
-    dislikes = models.ManyToManyField(User, blank=True, related_name='reply_dislikes')
-    parent = models.ForeignKey('Comment', on_delete=models.CASCADE, blank=True, null=True, related_name='+')
- 
-    @property
-    def children(self):
-        return ReplyComment.objects.filter(parent=self).order_by('-created_on').all()
-
-    @property
-    def is_parent(self):
-        if self.parent is None:
-            return True
-        return False
-
-
-
-    class Meta:
-        ordering=['-created_on']
-
+    
 @receiver(post_save,sender=User)
 def ProfileCreate(sender,instance,created,*args, **kwargs):
-    if created:
-        UserProfile.objects.create(user=instance)
-        print('profile created')
+        if created:
+            UserProfile.objects.create(user=instance)
+            
+            print('profile created')
+
 

@@ -1,5 +1,5 @@
 from rest_framework.generics import (
-    CreateAPIView,
+    CreateAPIView, ListAPIView,
     RetrieveUpdateDestroyAPIView,
     GenericAPIView,
 )
@@ -11,14 +11,14 @@ from rest_framework.response import Response
 from rest_framework.request import Request
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
-from core.models import Post, Comment, UserProfile, Image
+from rest_framework.permissions import IsAuthenticated
+from core.models import Post,UserProfile,Image
 from myauth.models import myUser
-from django.contrib.auth.mixins import UserPassesTestMixin, LoginRequiredMixin
 from .serializers import (
     AccountSerializer,
     PostSerializer,
     UserProfileSerializer,
-    CommentSerializer,
+ 
 )
 
 
@@ -32,6 +32,8 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
         token["email"] = user.email
         token["first_name"] = user.first_name
         token["last_name"] = user.last_name
+        token["username"] = user.username
+        token["profile_picture"] = str(user.profile.picture)
         # ...
 
         return token
@@ -43,10 +45,6 @@ class MyTokenObtainPairView(TokenObtainPairView):
 
 class RegisterView(GenericAPIView):
     serializer_class = AccountSerializer
-
-    def get(self, request: Request):
-
-        return Response({"register": "register"})
 
     def post(self, request: Request):
         data = request.data
@@ -69,22 +67,43 @@ class UserProfileView(RetrieveUpdateDestroyAPIView):
     lookup_field = "pk"
 
 
-class PostCreateView(LoginRequiredMixin, CreateAPIView):
+class PostCreateView( CreateAPIView):
 
     queryset = Post.objects.all()
     serializer_class = PostSerializer
+    permission_classes = [IsAuthenticated]
 
 
-class listPost(APIView):
-    def get(self, request):
-        user = request.user
-        followings = UserProfile.objects.get(user=user).followings.all()
-        queryset = Post.objects.get_user_feed(user=user, followings=followings)
-        if len(queryset)<1:
-            return Response('you have no post from your feed')
+class listPost(ListAPIView):
 
-        serializer = PostSerializer(queryset, many=True)
-        return Response(serializer.data)
+    queryset = Post.objects.all()
+     
+    serializer_class = PostSerializer
+
+    def get_queryset(self):
+        qs=super().get_queryset()
+        return (qs)
+        
+
+class ResharedPost(APIView):
+
+    def post(self,request,pk):
+        original_post=Post.objects.get(post_id=pk)
+        print(original_post.post_id)
+        images=original_post.images.all()
+
+        new_post = Post(shared_body=request.data['shared_body'],body=original_post.body,
+                        author=original_post.author,created_on=original_post.created_on,
+                        shared_user=request.user,original_post_id=str(original_post.post_id))        
+        new_post.save()
+
+        for image in images:
+            new_post.images.add(image)
+            new_post.save()
+
+     
+       
+        return Response({"message":'reshared'})
 
 
 class PostRetriveUpdateDeletView(RetrieveUpdateDestroyAPIView):
@@ -137,66 +156,29 @@ class SingleCommentView(APIView):
 
 
 class AddLikeView(APIView):
-    def post(self, request, pk, *args, **kwargs):
+      def post(self, request, pk, *args, **kwargs):
         post = Post.objects.get(post_id=pk)
 
-        is_dislike = False
-
-        for dislike in post.dislikes.all():
-            if dislike == request.user:
-                is_dislike = True
-                break
-
-        if is_dislike:
-            post.dislikes.remove(request.user)
 
         is_like = False
 
-        for like in post.likes.all():
-            if like == request.user:
+        for like in post.favourite.all():        
+            if str(like) == str(request.user):
                 is_like = True
                 break
 
         if is_like:
-            post.likes.remove(request.user)
-        data = post.likes.count()
+            
+            post.favourite.remove(request.user)
+            data = post.favourite.count()
+            return Response (data,status=status.HTTP_200_OK)
 
-        return Response({"likes count:", data}, status=status.HTTP_200_OK)
+        else:
+            post.favourite.add(request.user)
+            data = post.favourite.count()
+            return Response (data,status=status.HTTP_200_OK)
 
 
-class AddDisLikeView(APIView):
-    def get(self, request, pk, *args, **kwargs):
-
-        return Response({"message": "logged"}, status=status.HTTP_200_OK)
-
-    def post(self, request, pk, *args, **kwargs):
-        post = Post.objects.get(post_id=pk)
-
-        is_like = False
-
-        for like in post.likes.all():
-            if like == request.user:
-                is_like = True
-                break
-
-        if is_like:
-            post.likes.remove(request.user)
-
-        is_dislike = False
-
-        for dislike in post.dislikes.all():
-            if dislike == request.user:
-                is_dislike = True
-                break
-
-        if not is_dislike:
-            post.dislikes.add(request.user)
-
-        if is_dislike:
-            post.dislikes.remove(request.user)
-        data = post.dislikes.count()
-
-        return Response({"dislikes count:", data}, status=status.HTTP_200_OK)
 
 
 class AddCommentLikeView(APIView):
@@ -269,28 +251,6 @@ class AddCommentDisLikeView(APIView):
         data = comment.dislikes.count()
 
         return Response({"dislikes:", data}, status=status.HTTP_200_OK)
-
-
-class AddImageView(APIView):
-    parser_classes = (MultiPartParser, FormParser)
-
-    def post(self, request, pk, format=None):
-        images = request.FILES.getlist("image[]")
-        print("data", request.data["name"])
-        name = request.data["name"]
-        post = Post.objects.get(post_id=pk)
-        for image in images:
-            print("image", image)
-            img = Image(image=image, host=post, name=name)
-            img.save()
-            # img=Image.objects.all().last()
-            print(img)
-
-            post.image.add(img)
-
-        post.save()
-
-        return Response({"received data": " done"})
 
 
 class AddFollowingView(APIView):
